@@ -57,10 +57,21 @@ pub fn dir() -> PathBuf {
     if let Ok(p) = std::env::var("CARGO_MANIFEST_DIR") {
         return PathBuf::from(p).join("fixtures");
     }
-    let mut exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("."));
-    exe.pop();
-    exe.pop();
-    exe.join("fixtures")
+    if let Ok(current) = std::env::current_dir() {
+        let fixtures = current.join("fixtures");
+        if fixtures.is_dir() {
+            return fixtures;
+        }
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        for parent in exe.ancestors().skip(1) {
+            let fixtures = parent.join("fixtures");
+            if fixtures.is_dir() {
+                return fixtures;
+            }
+        }
+    }
+    PathBuf::from("fixtures")
 }
 
 /// Path to a fixture filename within the bundled directory.
