@@ -71,7 +71,7 @@ pub async fn load_bundled() -> Vec<(crate::fixtures::Bundled, anyhow::Result<Loa
     }
     catalog
         .iter()
-        .zip(results.into_iter())
+        .zip(results)
         .map(|(fixture, r)| (*fixture, r))
         .collect()
 }
