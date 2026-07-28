@@ -1,0 +1,36 @@
+[package]
+name = "packet-forensics-lab"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Offline network-forensics lab that explains DNS, connection, and timing anomalies in bundled packet fixtures."
+license = "MIT"
+keywords = ["forensics", "pcap", "dns", "ratatui", "security"]
+categories = ["command-line-utilities", "network-programming"]
+publish = false
+
+[[bin]]
+name = "pfl"
+path = "src/main.rs"
+
+[[example]]
+name = "gen_fixtures"
+path = "examples/gen_fixtures.rs"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync", "signal"] }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+assert_matches = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 1

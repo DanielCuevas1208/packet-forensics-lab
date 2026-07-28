@@ -1,0 +1,18 @@
+# Rust build artifacts
+/target
+debug/
+*.rs.bk
+
+# Cargo lockfile is kept for binaries; this is an application crate.
+# (Cargo.lock is committed intentionally.)
+
+# Editor and OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Generated pcap fixtures are committed under /fixtures on purpose.
+# Keep generated temp files out of source control.
+/tmp/
