@@ -44,3 +44,6 @@ jobs:
         run: |
           ./target/release/pfl list
           ./target/release/pfl scan beacon
+          ./target/release/pfl scan dns_tunnel --format json > report.json
+          python3 -m json.tool report.json > /dev/null
+          grep -q 'packet-forensics-lab/report/v1' report.json
