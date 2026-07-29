@@ -1,6 +1,6 @@
 [package]
 name = "packet-forensics-lab"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.74"
 description = "Offline network-forensics lab that explains DNS, connection, and timing anomalies in bundled packet fixtures."

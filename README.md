@@ -68,17 +68,25 @@ List the bundled fixtures.
 cargo run --release -- list
 ```
 
-Scan one bundled fixture by name and print the report.
+Scan one bundled fixture by name and print the report. The default
+output is plain text. Add `--format json` for a machine-readable report.
 
 ```
 cargo run --release -- scan dns_tunnel
+cargo run --release -- scan dns_tunnel --format json
 ```
 
 Scan any pcap file by path. The classic libpcap format is supported.
 
 ```
 cargo run --release -- scan path/to/capture.pcap
+cargo run --release -- scan path/to/capture.pcap --format json
 ```
+
+The JSON output uses one schema string and one set of field names across
+all releases. The current schema is `packet-forensics-lab/report/v1`. The
+report carries a `source` string, a `summary` object, and a `findings`
+array. Findings keep the severity-sorted order of the text report.
 
 Open the interactive terminal interface. The interface runs against the
 bundled fixtures.
@@ -135,10 +143,43 @@ Worst severity: HIGH
    10.10.0.21 sent SYN segments to 12 ports on 192.0.2.50. First ports observed: 22, 23, 25, 53, 80, 110, 143, 443. This pattern matches a port sweep.
 ```
 
+Scan the `port_scan` fixture with JSON output. The same call piped to
+`jq .` shows the report shape.
+
+```
+$ cargo run --release -- scan port_scan --format json | jq .
+{
+  "schema": "packet-forensics-lab/report/v1",
+  "source": "TCP SYN sweep across 12 ports on one host",
+  "summary": {
+    "frames": 12,
+    "flows": 12,
+    "dns_queries": 0,
+    "dns_responses": 0,
+    "tcp_syns": 12,
+    "capture_window_seconds": 0.06,
+    "findings": 1,
+    "worst_severity": "HIGH"
+  },
+  "findings": [
+    {
+      "severity": "HIGH",
+      "category": "Connection",
+      "title": "TCP SYN port scan",
+      "detail": "10.10.0.21 sent SYN segments to 12 ports on 192.0.2.50. First ports observed: 22, 23, 25, 53, 80, 110, 143, 443. This pattern matches a port sweep."
+    }
+  ]
+}
+```
+
+The JSON renderer writes no whitespace between tokens. The output above
+is pretty-printed by `jq` for readability. Parsing tools see a single
+deterministic line.
+
 ## Tests
 
-The suite covers parser, decoder, analyzer, and loader behavior. Run it from
-the repository root.
+The suite covers parser, decoder, analyzer, renderer, and loader behavior.
+Run it from the repository root.
 
 ```
 cargo test
@@ -163,14 +204,26 @@ reason about gaps that the capture did not record.
 
 ## Roadmap
 
-Later releases extend the lab without changing the offline contract.
+The lab ships JSON and text reports from one analyzer pipeline. The
+remaining work extends the lab without changing the offline contract.
+
+### Completed
+
+- Bundled Ethernet, IPv4, UDP, TCP, and DNS decoders.
+- Classic libpcap container reader with both byte orders.
+- DNS, connection, and timing analyzers with explained findings.
+- Deterministic fixture generator under `examples/`.
+- Ratatui terminal interface with Findings, Summary, and Flows tabs.
+- Plain-text report for the `scan` command.
+- JSON report for the `scan` command (`schema packet-forensics-lab/report/v1`).
+
+### Remaining
 
 - Decoders for IPv6, ICMP, and ARP.
 - A PCAPNG container reader.
 - PCAPNG write support in the fixture generator.
 - Per-flow statistics in the Flows tab.
 - Confidence scores that replace the hard severity thresholds.
-- A JSON export for the `scan` command.
 - A plugin trait that lets external crates add analyzers.
 
 ## License

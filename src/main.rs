@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use packet_forensics_lab::{fixtures, loader, render, tui};
 
 /// Packet Forensics Lab.
@@ -16,13 +16,25 @@ struct Cli {
 enum Command {
     /// Open the interactive terminal interface.
     Tui,
-    /// Analyze one bundled fixture or an external pcap file and print text.
+    /// Analyze one bundled fixture or an external pcap file and print a report.
     Scan {
         /// A bundled fixture name or a path to a pcap file.
         target: String,
+        /// Output format. Defaults to plain text suitable for a terminal.
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
     },
     /// List the bundled fixtures.
     List,
+}
+
+/// Report shape written by the scan command.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum OutputFormat {
+    /// Deterministic, human-readable text.
+    Text,
+    /// Deterministic JSON report (schema packet-forensics-lab/report/v1).
+    Json,
 }
 
 #[tokio::main]
@@ -32,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
         None | Some(Command::Tui) => {
             tui::run().await?;
         }
-        Some(Command::Scan { target }) => {
+        Some(Command::Scan { target, format }) => {
             let loaded = if let Some(fixture) = fixtures::find(&target) {
                 loader::load_path(fixture.title, &fixtures::path(fixture.filename)).await?
             } else {
@@ -44,7 +56,11 @@ async fn main() -> anyhow::Result<()> {
                     .to_string();
                 loader::load_path(&title, &path).await?
             };
-            println!("{}", render::text(&loaded.report));
+            let output = match format {
+                OutputFormat::Text => render::text(&loaded.report),
+                OutputFormat::Json => render::json(&loaded.report),
+            };
+            println!("{output}");
         }
         Some(Command::List) => {
             println!("{:<12} SCENARIO", "NAME");
