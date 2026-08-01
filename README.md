@@ -1,21 +1,19 @@
 # Packet Forensics Lab
 
-Packet Forensics Lab is a defensive, offline network-forensics tool. It reads
-bundled packet captures and explains suspicious DNS, connection, and timing
-patterns. The lab never sends packets and never performs active scanning. It
-works only with sample fixtures that the repository ships.
+Packet Forensics Lab is an offline network-forensics tool for defensive study.
+It reads bundled packet captures and explains suspicious DNS, connection, and
+timing patterns. It never sends packets or performs active scans. It uses only
+the sample fixtures in this repository.
 
 ## Why this tool exists
 
-Analysts need a safe way to study hostile traffic shapes. Real captures hold
-private data and can reach third-party systems. This lab ships crafted
-fixtures that keep the hostile shape but contain no real hosts or secrets.
-Each fixture is deterministic so the same input always produces the same
-report.
+This lab provides a safe way to study hostile traffic shapes. Real captures can
+contain private data and real hosts. The bundled fixtures keep the traffic shape
+but contain no real hosts or secrets. Each fixture is deterministic, so the same
+input produces the same report.
 
-The analyzer layers explain what happened instead of only flagging it. Each
-finding prints a severity, a category, and a short cause note. The note tells
-the analyst which value drove the decision.
+The analyzers explain each finding. Each finding has a severity, a category,
+and a short cause note. The note identifies the value that drove the decision.
 
 ## Architecture
 
