@@ -1,12 +1,11 @@
 //! Terminal interface for the forensics lab.
 //!
 //! The interface renders a fixture catalog, a findings panel, a summary tab,
-//! and a per-flow tab. It never opens a socket and never requests input from
+//! and an aggregated flow tab. It never opens a socket and never requests input from
 //! the user. All navigation is keyboard driven.
 
-use crate::analysis::{Report, Severity};
+use crate::analysis::{self, Report, Severity};
 use crate::loader::{self, Loaded};
-use crate::packet::Frame;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
@@ -318,46 +317,58 @@ fn draw_flows(f: &mut ratatui::Frame<'_>, loaded: &anyhow::Result<Loaded>, area:
         f.render_widget(p, area);
         return;
     };
-    let frames = &loaded.frames;
-    if frames.is_empty() {
+    let stats = analysis::flow_stats(&loaded.frames);
+    if stats.is_empty() {
         let p = Paragraph::new("No decodable frames were present in this fixture.")
             .block(block("Flows", Color::DarkGray));
         f.render_widget(p, area);
         return;
     }
-    let header = Row::new(vec!["#", "proto", "src", "dst", "sport", "dport", "flags"]).style(
+    let header = Row::new(vec![
+        "#",
+        "proto",
+        "source",
+        "destination",
+        "pkts",
+        "bytes",
+        "span",
+        "SYNs",
+    ])
+    .style(
         Style::default()
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD),
     );
-    let rows: Vec<Row<'_>> = frames
+    let rows: Vec<Row<'_>> = stats
         .iter()
         .take(200)
         .enumerate()
-        .map(|(i, frame)| {
+        .map(|(i, stat)| {
             Row::new(vec![
                 i.to_string(),
-                proto_label(frame.flow.proto).to_string(),
-                frame.flow.src.to_string(),
-                frame.flow.dst.to_string(),
-                frame.flow.src_port.to_string(),
-                frame.flow.dst_port.to_string(),
-                format_flags(frame),
+                proto_label(stat.flow.proto).to_string(),
+                format_endpoint(stat.flow.src, stat.flow.src_port),
+                format_endpoint(stat.flow.dst, stat.flow.dst_port),
+                stat.packets.to_string(),
+                format_bytes(stat.bytes),
+                format_duration(stat.duration_micros()),
+                stat.tcp_syns.to_string(),
             ])
         })
         .collect();
     let widths = [
         Constraint::Length(4),
         Constraint::Length(5),
-        Constraint::Length(15),
-        Constraint::Length(15),
+        Constraint::Length(22),
+        Constraint::Length(22),
         Constraint::Length(6),
-        Constraint::Length(6),
-        Constraint::Length(8),
+        Constraint::Length(9),
+        Constraint::Length(9),
+        Constraint::Length(5),
     ];
     let table = Table::new(rows, widths)
         .header(header)
-        .block(block("Flows (decoded packets)", Color::Cyan));
+        .block(block("Flows (aggregated five-tuples)", Color::Cyan));
     f.render_widget(table, area);
 }
 
@@ -406,25 +417,18 @@ fn proto_label(p: crate::packet::Proto) -> &'static str {
     }
 }
 
-fn format_flags(frame: &Frame) -> String {
-    if frame.flow.proto == crate::packet::Proto::Udp {
-        return "-".to_string();
+fn format_endpoint(address: std::net::Ipv4Addr, port: u16) -> String {
+    format!("{address}:{port}")
+}
+
+fn format_bytes(bytes: usize) -> String {
+    format!("{bytes} B")
+}
+
+fn format_duration(micros: u64) -> String {
+    if micros < 1_000 {
+        format!("{micros} us")
+    } else {
+        format!("{:.2} ms", micros as f64 / 1_000.0)
     }
-    let mut out = String::new();
-    if frame.tcp_flags & crate::packet::tcp::FLAG_SYN != 0 {
-        out.push('S');
-    }
-    if frame.tcp_flags & crate::packet::tcp::FLAG_ACK != 0 {
-        out.push('A');
-    }
-    if frame.tcp_flags & crate::packet::tcp::FLAG_RST != 0 {
-        out.push('R');
-    }
-    if frame.tcp_flags & crate::packet::tcp::FLAG_PSH != 0 {
-        out.push('P');
-    }
-    if frame.tcp_flags & crate::packet::tcp::FLAG_FIN != 0 {
-        out.push('F');
-    }
-    out
 }

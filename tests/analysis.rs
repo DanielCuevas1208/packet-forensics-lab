@@ -1,7 +1,9 @@
 //! Analyzer behavior against bundled fixtures.
 
-use packet_forensics_lab::analysis::{Category, Report, Severity};
+use packet_forensics_lab::analysis::{self, Category, Report, Severity};
 use packet_forensics_lab::loader;
+use packet_forensics_lab::packet::{Flow, Frame, Proto};
+use std::net::Ipv4Addr;
 
 fn load(name: &str) -> Report {
     let bytes = std::fs::read(format!("fixtures/{name}.pcap")).expect("read fixture");
@@ -89,4 +91,66 @@ fn entropy_helpers_are_consistent() {
     assert!(entropy::shannon_entropy(b"abcdefghij") > 2.0);
     assert_eq!(entropy::registered_domain("a.b.example.com"), "example.com");
     assert_eq!(entropy::registered_domain("example.com"), "example.com");
+}
+
+#[test]
+fn flow_stats_group_packets_and_keep_first_seen_order() {
+    let client = Flow {
+        src: Ipv4Addr::new(10, 0, 0, 5),
+        dst: Ipv4Addr::new(192, 0, 2, 50),
+        src_port: 40_000,
+        dst_port: 443,
+        proto: Proto::Tcp,
+    };
+    let reverse = Flow {
+        src: client.dst,
+        dst: client.src,
+        src_port: client.dst_port,
+        dst_port: client.src_port,
+        proto: Proto::Tcp,
+    };
+    let frames = vec![
+        Frame {
+            flow: client.clone(),
+            tcp_flags: packet_forensics_lab::packet::tcp::FLAG_SYN,
+            payload: vec![0; 5],
+            ts_micros: 20,
+            wire_len: 75,
+        },
+        Frame {
+            flow: reverse.clone(),
+            tcp_flags: packet_forensics_lab::packet::tcp::FLAG_ACK,
+            payload: Vec::new(),
+            ts_micros: 25,
+            wire_len: 54,
+        },
+        Frame {
+            flow: client.clone(),
+            tcp_flags: packet_forensics_lab::packet::tcp::FLAG_ACK,
+            payload: Vec::new(),
+            ts_micros: 30,
+            wire_len: 60,
+        },
+        Frame {
+            flow: client.clone(),
+            tcp_flags: packet_forensics_lab::packet::tcp::FLAG_ACK,
+            payload: Vec::new(),
+            ts_micros: 10,
+            wire_len: 64,
+        },
+    ];
+
+    let stats = analysis::flow_stats(&frames);
+    assert_eq!(stats.len(), 2);
+    assert_eq!(stats[0].flow, client);
+    assert_eq!(stats[0].packets, 3);
+    assert_eq!(stats[0].bytes, 199);
+    assert_eq!(stats[0].first_ts_micros, 10);
+    assert_eq!(stats[0].last_ts_micros, 30);
+    assert_eq!(stats[0].duration_micros(), 20);
+    assert_eq!(stats[0].tcp_syns, 1);
+    assert_eq!(stats[1].flow, reverse);
+    assert_eq!(stats[1].packets, 1);
+    assert_eq!(stats[1].bytes, 54);
+    assert_eq!(stats[1].duration_micros(), 0);
 }
