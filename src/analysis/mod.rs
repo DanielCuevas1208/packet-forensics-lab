@@ -5,7 +5,7 @@ pub mod dns;
 pub mod entropy;
 pub mod timing;
 
-use crate::packet::Frame;
+use crate::packet::{is_syn, Flow, Frame, Proto};
 
 /// Severity of a finding. Ordered low to high.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -81,6 +81,24 @@ pub struct Summary {
     pub span_micros: u64,
 }
 
+/// Evidence aggregated for one direction-specific five-tuple.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FlowStats {
+    pub flow: Flow,
+    pub packets: usize,
+    pub bytes: usize,
+    pub first_ts_micros: u64,
+    pub last_ts_micros: u64,
+    pub tcp_syns: usize,
+}
+
+impl FlowStats {
+    /// Return the observed time between the first and last packet.
+    pub fn duration_micros(&self) -> u64 {
+        self.last_ts_micros.saturating_sub(self.first_ts_micros)
+    }
+}
+
 /// The full analyis result consumed by the terminal interface.
 #[derive(Debug, Clone, Default)]
 pub struct Report {
@@ -139,4 +157,42 @@ fn count_flows(frames: &[Frame]) -> usize {
         ));
     }
     set.len()
+}
+
+/// Aggregate decoded packets by direction-specific flow.
+///
+/// The returned order follows the first packet seen for each flow. This keeps
+/// the terminal view stable without relying on hash-map iteration order.
+pub fn flow_stats(frames: &[Frame]) -> Vec<FlowStats> {
+    let mut indexes = std::collections::HashMap::new();
+    let mut stats = Vec::new();
+
+    for frame in frames {
+        let index = if let Some(index) = indexes.get(&frame.flow) {
+            *index
+        } else {
+            let index = stats.len();
+            indexes.insert(frame.flow.clone(), index);
+            stats.push(FlowStats {
+                flow: frame.flow.clone(),
+                packets: 0,
+                bytes: 0,
+                first_ts_micros: frame.ts_micros,
+                last_ts_micros: frame.ts_micros,
+                tcp_syns: 0,
+            });
+            index
+        };
+
+        let current = &mut stats[index];
+        current.packets += 1;
+        current.bytes = current.bytes.saturating_add(frame.wire_len);
+        current.first_ts_micros = current.first_ts_micros.min(frame.ts_micros);
+        current.last_ts_micros = current.last_ts_micros.max(frame.ts_micros);
+        if frame.flow.proto == Proto::Tcp && is_syn(frame.tcp_flags) {
+            current.tcp_syns += 1;
+        }
+    }
+
+    stats
 }

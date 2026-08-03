@@ -27,16 +27,19 @@ The crate is split into small modules that each own one job.
 - `wire` builds the same layers in reverse. The fixture generator uses it to
   craft bytes. Tests use it to assert correct decode behavior.
 - `analysis` runs three analyzers: DNS anomalies, connection anomalies, and
-  timing anomalies. Each analyzer returns a list of `Finding` values.
+  timing anomalies. It also returns deterministic `FlowStats` values.
 - `loader` reads bytes with Tokio, parses with `spawn_blocking`, and pairs the
   decoded frames with a `Report`.
 - `tui` renders a Ratatui interface. It lists fixtures, shows findings, shows
-  summary numbers, and shows the decoded flow table.
+  summary numbers, and shows aggregated flow evidence.
 - `render` writes a plain-text report for the `scan` command.
 
 The data flow is one direction. Bytes enter at `pcap`, become frames at
-`packet`, become findings at `analysis`, and become views in `tui` or text in
+`packet`, become findings and flow stats at `analysis`, and become views in
 `render`.
+
+The Flows tab reads `FlowStats` from the same analysis boundary. It does not
+create a second packet decoder or analyzer path.
 
 ## Bundled fixtures
 
@@ -96,6 +99,9 @@ cargo run --release -- tui
 Inside the interface use Up and Down to select a fixture. Use Tab to switch
 between the Findings, Summary, and Flows tabs. Press 1, 2, or 3 to jump to a
 tab. Press q to quit.
+
+The Flows tab shows one row for each direction-specific five-tuple. Each row
+shows packet count, captured bytes, observed span, and TCP SYN count.
 
 ## Sample output
 
@@ -174,6 +180,9 @@ The JSON renderer writes no whitespace between tokens. The output above
 is pretty-printed by `jq` for readability. Parsing tools see a single
 deterministic line.
 
+The TUI Flows tab uses the same decoded frames. It groups reverse traffic into
+a separate row, so the view keeps packet direction visible.
+
 ## Tests
 
 The suite covers parser, decoder, analyzer, renderer, and loader behavior.
@@ -182,6 +191,8 @@ Run it from the repository root.
 ```
 cargo test
 ```
+
+At the current revision, 32 tests pass with `cargo test --locked`.
 
 Format and lint options are configured for CI.
 
@@ -200,6 +211,8 @@ fixtures. Tune the constants in `src/analysis` before you trust them on real
 traffic. The timing analyzer treats each capture as a closed window. It cannot
 reason about gaps that the capture did not record.
 
+The TUI displays the first 200 aggregated flows.
+
 ## Roadmap
 
 The lab ships JSON and text reports from one analyzer pipeline. The
@@ -212,6 +225,7 @@ remaining work extends the lab without changing the offline contract.
 - DNS, connection, and timing analyzers with explained findings.
 - Deterministic fixture generator under `examples/`.
 - Ratatui terminal interface with Findings, Summary, and Flows tabs.
+- Directional flow aggregation with packet count, bytes, span, and SYN count.
 - Plain-text report for the `scan` command.
 - JSON report for the `scan` command (`schema packet-forensics-lab/report/v1`).
 
@@ -220,7 +234,6 @@ remaining work extends the lab without changing the offline contract.
 - Decoders for IPv6, ICMP, and ARP.
 - A PCAPNG container reader.
 - PCAPNG write support in the fixture generator.
-- Per-flow statistics in the Flows tab.
 - Confidence scores that replace the hard severity thresholds.
 - A plugin trait that lets external crates add analyzers.
 
