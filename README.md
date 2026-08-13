@@ -20,8 +20,9 @@ and a short cause note. The note identifies the value that drove the decision.
 The crate is split into small modules that each own one job.
 
 - `pcap` reads the classic libpcap container. It supports both byte orders and
-  the nanosecond timestamp variant. Ethernet (link type 1) is the only link
-  layer it accepts.
+  the nanosecond timestamp variant. Ethernet is the only link layer it accepts.
+- `pcapng` reads common PCAPNG blocks and converts them to the shared capture
+  model. It handles multiple Ethernet interfaces and timestamp resolutions.
 - `packet` decodes Ethernet, IPv4, UDP, TCP, and DNS. The decoders never
   allocate beyond the returned structures and never verify checksums.
 - `wire` builds the same layers in reverse. The fixture generator uses it to
@@ -34,7 +35,7 @@ The crate is split into small modules that each own one job.
   summary numbers, and shows aggregated flow evidence.
 - `render` writes a plain-text report for the `scan` command.
 
-The data flow is one direction. Bytes enter at `pcap`, become frames at
+The data flow is one direction. Bytes enter at `pcap` or `pcapng`, become frames at
 `packet`, become findings and flow stats at `analysis`, and become views in
 `render`.
 
@@ -77,12 +78,16 @@ cargo run --release -- scan dns_tunnel
 cargo run --release -- scan dns_tunnel --format json
 ```
 
-Scan any pcap file by path. The classic libpcap format is supported.
+Scan a PCAP or PCAPNG file by path.
 
 ```
 cargo run --release -- scan path/to/capture.pcap
 cargo run --release -- scan path/to/capture.pcap --format json
+cargo run --release -- scan path/to/capture.pcapng
 ```
+
+The loader detects the container format from the file header. Both formats
+produce the same text and JSON report shapes.
 
 The JSON output uses one schema string and one set of field names across
 all releases. The current schema is `packet-forensics-lab/report/v1`. The
@@ -185,14 +190,15 @@ a separate row, so the view keeps packet direction visible.
 
 ## Tests
 
-The suite covers parser, decoder, analyzer, renderer, and loader behavior.
+The suite covers both container parsers, decoders, analyzers, renderers, and
+loader behavior.
 Run it from the repository root.
 
 ```
 cargo test
 ```
 
-At the current revision, 32 tests pass with `cargo test --locked`.
+At the current revision, 38 tests pass with `cargo test --locked`.
 
 Format and lint options are configured for CI.
 
@@ -203,8 +209,11 @@ cargo clippy --all-targets -- -D warnings
 
 ## Limitations
 
-The lab accepts only the classic libpcap container. PCAPNG files are not read.
-Only Ethernet and IPv4 are decoded. ARP, IPv6, and ICMP frames are skipped.
+PCAPNG support reads Section Header, Interface Description, Enhanced Packet,
+and Simple Packet blocks. The reader skips other valid block types.
+It accepts Ethernet interfaces only. Only Ethernet and IPv4 are decoded.
+ARP, IPv6, and ICMP frames are skipped.
+PCAPNG write support remains on the roadmap.
 UDP and TCP checksums are never verified. The fixture generator writes zero
 checksums on purpose. The analyzers use fixed thresholds that suit the bundled
 fixtures. Tune the constants in `src/analysis` before you trust them on real
@@ -228,11 +237,11 @@ remaining work extends the lab without changing the offline contract.
 - Directional flow aggregation with packet count, bytes, span, and SYN count.
 - Plain-text report for the `scan` command.
 - JSON report for the `scan` command (`schema packet-forensics-lab/report/v1`).
+- PCAPNG input for common Ethernet packet blocks.
 
 ### Remaining
 
 - Decoders for IPv6, ICMP, and ARP.
-- A PCAPNG container reader.
 - PCAPNG write support in the fixture generator.
 - Confidence scores that replace the hard severity thresholds.
 - A plugin trait that lets external crates add analyzers.

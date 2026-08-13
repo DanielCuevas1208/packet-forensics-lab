@@ -10,6 +10,7 @@ pub mod fixtures;
 pub mod loader;
 pub mod packet;
 pub mod pcap;
+pub mod pcapng;
 pub mod render;
 pub mod tui;
 pub mod wire;

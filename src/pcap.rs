@@ -2,7 +2,7 @@
 //!
 //! The module reads the legacy pcap container used by tcpdump and Wireshark.
 //! It supports Ethernet (link type 1) only, which the bundled fixtures use.
-//! PCAPNG is intentionally out of scope for the first release.
+//! PCAPNG input lives in the sibling `pcapng` module.
 
 use crate::error::{ForensicsError, Result};
 

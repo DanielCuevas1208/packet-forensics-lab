@@ -28,11 +28,11 @@ jobs:
 
       - name: Verify fixtures are up to date
         run: |
-          cargo run --release --example gen_fixtures
+          cargo run --release --locked --example gen_fixtures
           git diff --exit-code -- fixtures
 
       - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
 
       - name: Build
         run: cargo build --release --locked
