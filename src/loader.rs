@@ -4,6 +4,7 @@ use crate::analysis::{self, Report};
 use crate::error::ForensicsError;
 use crate::packet::{self, Frame};
 use crate::pcap;
+use crate::pcapng;
 
 /// A decoded capture paired with its analysis report.
 #[derive(Debug, Clone)]
@@ -12,9 +13,13 @@ pub struct Loaded {
     pub frames: Vec<Frame>,
 }
 
-/// Parse pcap bytes into a decoded frame list plus span in microseconds.
+/// Parse PCAP or PCAPNG bytes into decoded frames plus a span in microseconds.
 pub fn parse_capture(bytes: &[u8]) -> Result<(Vec<Frame>, u64), ForensicsError> {
-    let cap = pcap::parse(bytes)?;
+    let cap = if pcapng::is_pcapng(bytes) {
+        pcapng::parse(bytes)?
+    } else {
+        pcap::parse(bytes)?
+    };
     let span = cap.span_micros();
     let mut frames = Vec::with_capacity(cap.records.len());
     for rec in &cap.records {
